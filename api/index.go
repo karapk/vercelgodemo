@@ -1,4 +1,4 @@
-package handler
+package main
 
 import (
 	"fmt"
@@ -7,7 +7,8 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func Handler(c echo.Context) error {
+// Handler function for Vercel
+func Handler(w http.ResponseWriter, r *http.Request) {
 	e := echo.New()
 
 	// Middleware for recovery
@@ -67,6 +68,12 @@ func Handler(c echo.Context) error {
 		})
 	})
 
-	// Start the server
-	return e.Start(":8080") // You may change the port as needed
+	// Serve the request
+	e.ServeHTTP(w, r) // Serve the HTTP request using Echo
+}
+
+// Entry point for the Vercel function
+func main() {
+	// The main function is not typically needed in Vercel functions
+	// as the Handler function is used directly
 }
