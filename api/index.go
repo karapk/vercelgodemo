@@ -4,53 +4,69 @@ import (
 	"fmt"
 	"net/http"
 
-	. "github.com/tbxark/g4vercel"
+	"github.com/labstack/echo/v4"
 )
 
-func Handler(w http.ResponseWriter, r *http.Request) {
-	server := New()
-	server.Use(Recovery(func(err interface{}, c *Context) {
-		if httpError, ok := err.(HttpError); ok {
-			c.JSON(httpError.Status, H{
-				"message": httpError.Error(),
-			})
-		} else {
-			message := fmt.Sprintf("%s", err)
-			c.JSON(500, H{
-				"message": message,
-			})
+func Handler(c echo.Context) error {
+	e := echo.New()
+
+	// Middleware for recovery
+	e.Use(echo.MiddlewareFunc(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			defer func() {
+				if err := recover(); err != nil {
+					if httpError, ok := err.(echo.HTTPError); ok {
+						c.JSON(httpError.Code, map[string]string{
+							"message": httpError.Error(),
+						})
+					} else {
+						message := fmt.Sprintf("%s", err)
+						c.JSON(http.StatusInternalServerError, map[string]string{
+							"message": message,
+						})
+					}
+				}
+			}()
+			return next(c)
 		}
 	}))
-	server.GET("/", func(context *Context) {
-		context.JSON(200, H{
+
+	// Define routes
+	e.GET("/", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, map[string]string{
 			"message": "OK",
 		})
 	})
-	server.GET("/hello", func(context *Context) {
-		name := context.Query("name")
+
+	e.GET("/hello", func(c echo.Context) error {
+		name := c.QueryParam("name")
 		if name == "" {
-			context.JSON(400, H{
+			return c.JSON(http.StatusBadRequest, map[string]string{
 				"message": "name not found",
 			})
-		} else {
-			context.JSON(200, H{
-				"data": fmt.Sprintf("Hello %s!", name),
-			})
 		}
+		return c.JSON(http.StatusOK, map[string]string{
+			"data": fmt.Sprintf("Hello %s!", name),
+		})
 	})
-	server.GET("/user/:id", func(context *Context) {
-		context.JSON(400, H{
-			"data": H{
-				"id": context.Param("id"),
+
+	e.GET("/user/:id", func(c echo.Context) error {
+		id := c.Param("id")
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"data": map[string]string{
+				"id": id,
 			},
 		})
 	})
-	server.GET("/long/long/long/path/*test", func(context *Context) {
-		context.JSON(200, H{
-			"data": H{
-				"url": context.Path,
+
+	e.GET("/long/long/long/path/*test", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"data": map[string]string{
+				"url": c.Path(),
 			},
 		})
 	})
-	server.Handle(w, r)
+
+	// Start the server
+	return e.Start(":8080") // You may change the port as needed
 }
